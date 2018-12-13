@@ -2,6 +2,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.util.*;
 
 /**
@@ -135,7 +136,7 @@ class WGraph {
     };
 
     private List<Edge> edges;
-    private HashMap<Node, List<Edge>> adj;
+    private HashMap<String, List<Edge>> adj = new HashMap<String, List<Edge>>();
     private int V;
 
     /**
@@ -151,7 +152,6 @@ class WGraph {
             throw new NullPointerException("File is empty or non-existent");
 
         edges = new LinkedList<>();
-        adj = new HashMap<>();
         populateGraph(FName);
         adjPop();
     }
@@ -248,9 +248,11 @@ class WGraph {
      * Helper method that populates our Hashmap adjaceny list
      */
     private void adjPop() {
+        String node;
         for (Node v : nodes) {
-            if (adj.isEmpty() || !adj.containsKey(v)) {
-                adj.put(v, v.getNeighbors());
+            node = "" + v.getX() + " " + v.getY();
+            if (adj.isEmpty() || !adj.containsKey(node)) {
+                adj.put(node, v.getNeighbors());
             }
         }
     }
@@ -271,23 +273,42 @@ class WGraph {
         Node src = new Node(ux, uy);
         Node dest = new Node(vx, vy);
 
+
         ArrayList<Integer> paths = new ArrayList<>();
+
+        if (!nodes.contains(src) || !nodes.contains(dest)) {
+            return paths;
+        }
 
         boolean[] visited = new boolean[V];
 
         src.setDist(0);
+        nodes.remove(src);
+        nodes.add(src);
         PriorityQueue<Node> queue = new PriorityQueue<>(nodes);
 
         while (!queue.isEmpty()) {
+
+            if(paths.size() >= V) {
+                paths.clear();
+                return paths;
+            }
 
             Node u = queue.poll();
             if (u.getDist() > 99999999) {
                 u.setDist(0);
             }
-            paths.add(u.getX());
-            paths.add(u.getY());
 
-            List<Edge> adjacentU = adj.get(nodes.get(u.getIndex()));
+
+            String temp = "" + u.getX() + " " + u.getY();
+
+            List<Edge> adjacentU = adj.get(temp); // adj.get(nodes.get(u.getIndex()));
+
+            if(!paths.contains(u)) {
+
+                paths.add(u.getX());
+                paths.add(u.getY());
+            }
 
             for (Edge e : adjacentU) {
                 Node v = e.getDest();
@@ -303,6 +324,11 @@ class WGraph {
                     paths.add(dest.getY());
                     return paths;
                 }
+            }
+            Node v = queue.peek();
+            for (Edge e : adjacentU) {
+                if(!e.getDest().equals(v))
+                queue.remove(e.getDest());
             }
         }
 
@@ -333,7 +359,19 @@ class WGraph {
 
         Node src = new Node(ux, uy);
 
-        Set<Node> p = new HashSet<>();
+        Set<Node> p = new HashSet<Node>() {
+            @Override
+            public boolean contains(Object o) {
+                if(!this.isEmpty()) {
+                    for (Node v : this) {
+                        if (v.equals(o)) {
+                            ((Node) o).setIndex(v.getIndex());
+                            return true;
+                        }
+                    }
+                } return false;
+            }
+        };
 
         int minCost = Integer.MAX_VALUE;
         ArrayList<Node> curPath = new ArrayList<>();
@@ -344,18 +382,28 @@ class WGraph {
             p.add(d);
         }
 
+        if (p.contains(src)) {
+            curPath.add(src);
+            return N2INT(curPath);
+        }
+
         boolean[] visited = new boolean[V];
 
         PriorityQueue<Node> queue = new PriorityQueue<>();
 
         src.setDist(0);
+        nodes.remove(src);
+        nodes.add(src);
+
         queue.add(src);
 
         curPath.add(src);
 
         while (!queue.isEmpty()) {
             Node u = queue.poll();
-            List<Edge> adjacentU = adj.get(nodes.get(u.getIndex()));
+            String utmp = "" + u.getX() + " " + u.getY();
+            List<Edge> adjacentU = adj.get(utmp);
+
             if (!curPath.contains(u)) {
                 curPath.add(u);
             }
@@ -368,25 +416,34 @@ class WGraph {
                         visited[v.index] = true;
                         queue.add(v);
                     }
-                    if (p.contains(v)) {
-                        curPath.add(v);
-                        Object o = curPath.clone();
-                        ArrayList<Node> temp = (ArrayList<Node>) curPath.clone();
-                        if (v.getDist() < minCost) {
-                            minCost = v.getDist();
-                            paths.put(minCost, temp);
-                        } else {
-                            paths.put(v.getDist(), temp);
-                        }
-                        visited[v.index] = false;
-                        curPath.clear();
-                        curPath.add(u);
-                    }
                 }
+                if (p.contains(v)) {
+                    curPath.add(v);
+                    Object o = curPath.clone();
+                    ArrayList<Node> temp = (ArrayList<Node>) curPath.clone();
+                    if (v.getDist() < minCost) {
+                        minCost = v.getDist();
+                        paths.put(minCost, temp);
+                    } else {
+                        paths.put(v.getDist(), temp);
+                    }
+                    curPath.clear();
+                    curPath.add(src);
+                }
+            }
+            Node v = queue.peek();
+            for (Edge e : adjacentU) {
+                if(!e.getDest().equals(v))
+                    queue.remove(e.getDest());
             }
 
         }
         ArrayList<Node> minPath = paths.get(minCost);
+
+        if (paths.isEmpty()) {
+            ArrayList<Integer> x = new ArrayList<>();
+            return x;
+        }
 
         if (!minPath.isEmpty()) {
             return N2INT(minPath);
@@ -428,35 +485,137 @@ class WGraph {
      * @return Shortest possible path from some node in S1 to some node in S2
      */
     ArrayList<Integer> S2S(ArrayList<Integer> S1, ArrayList<Integer> S2) {
-        Set<Node> s_1 = new HashSet<>();
-        Set<Node> s_2 = new HashSet<>();
-        boolean[] visited = new boolean[V];
-        Node src = new Node(0, 0);
-        Node dest = new Node(0, 0);
-
-        int minCost = Integer.MAX_VALUE;
-        ArrayList<Node> curPath = new ArrayList<>();
-        Hashtable<Integer, ArrayList<Node>> paths = new Hashtable<>();
-
-
+        Set<Node> s_1 = new HashSet<Node>() {
+            @Override
+            public boolean contains(Object o) {
+                if (!this.isEmpty()) {
+                    for (Node v : this) {
+                        if (v.equals(o)) {
+                            ((Node) o).setIndex(v.getIndex());
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+        };
+        Set<Node> s_2 = new HashSet<Node>() {
+            @Override
+            public boolean contains(Object o) {
+                if (!this.isEmpty()) {
+                    for (Node v : this) {
+                        if (v.equals(o)) {
+                            ((Node) o).setIndex(v.getIndex());
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+        };
+//        boolean[] visited = new boolean[V];
+//        //Node src = new Node(0, 0);
+//        Node dest = new Node(0, 0);
+//
+//        int minCost = Integer.MAX_VALUE;
+//        ArrayList<Node> curPath = new ArrayList<>();
+//        Hashtable<Integer, ArrayList<Node>> paths = new Hashtable<>();
         for (int i = 0; i < S1.size(); i += 2) {
             Node n = new Node(S1.get(i), S1.get(i + 1));
             s_1.add(n);
-            Edge e = new Edge(src, n, 0);
-            src.addNeighbor(e);
         }
         for (int j = 0; j < S2.size(); j += 2) {
             Node m = new Node(S2.get(j), S2.get(j + 1));
             s_2.add(m);
-            Edge e = new Edge(dest, m, 0);
-            dest.addNeighbor(e);
             if (s_1.contains(m)) {
-                curPath.add(m);
-                return N2INT(curPath);
+                ArrayList<Integer> uno = new ArrayList<>();
+                uno.add(m.getX());
+                uno.add(m.getY());
+                return uno;
             }
         }
 
-        src.setDist(0);
+        int minCost = Integer.MAX_VALUE;
+        Hashtable<Integer, ArrayList<Node>> paths = new Hashtable<>();
+
+        for (Node src : s_1) {
+
+            ArrayList<Node> curPath = new ArrayList<>();
+
+
+            if (s_2.contains(src)) {
+                curPath.add(src);
+                return N2INT(curPath);
+            }
+
+            boolean[] visited = new boolean[V];
+
+            PriorityQueue<Node> queue = new PriorityQueue<>();
+
+            src.setDist(0);
+            nodes.remove(src);
+            nodes.add(src);
+
+            queue.add(src);
+
+            curPath.add(src);
+
+            while (!queue.isEmpty()) {
+                Node u = queue.poll();
+                String utmp = "" + u.getX() + " " + u.getY();
+                List<Edge> adjacentU = adj.get(utmp);
+
+                if (!curPath.contains(u)) {
+                    curPath.add(u);
+                }
+
+                for (Edge e : adjacentU) {
+                    Node v = e.getDest();
+                    if (!visited[v.index]) {
+                        if ((u.getDist() + e.getWeight()) < v.getDist()) {
+                            v.setDist(u.getDist() + e.getWeight());
+                            visited[v.index] = true;
+                            queue.add(v);
+                        }
+                    }
+                    if (s_2.contains(v)) {
+                        curPath.add(v);
+                        Object o = curPath.clone();
+                        ArrayList<Node> temp = (ArrayList<Node>) curPath.clone();
+                        if (v.getDist() < minCost) {
+                            minCost = v.getDist();
+                            paths.put(minCost, temp);
+                        } else {
+                            paths.put(v.getDist(), temp);
+                        }
+                        curPath.clear();
+                        curPath.add(src);
+                    }
+                }
+                Node v = queue.peek();
+                for (Edge e : adjacentU) {
+                    if (!e.getDest().equals(v))
+                        queue.remove(e.getDest());
+                }
+
+            }
+
+        }
+        ArrayList<Node> minPath = paths.get(minCost);
+
+        if (paths.isEmpty()) {
+            ArrayList<Integer> x = new ArrayList<>();
+            return x;
+        }
+
+        if (!minPath.isEmpty()) {
+            return N2INT(minPath);
+        }
+        return null;
+
+
+
+        /*src.setDist(0);
         PriorityQueue<Node> queue = new PriorityQueue<Node>(nodes);
         queue.peek().setDist(0);
 
@@ -470,7 +629,14 @@ class WGraph {
 //            curPath.add(u.getX());
 //            curPath.add(u.getY());
 
-            List<Edge> adjacentU = adj.get(nodes.get(u.getIndex()));
+            String tmp = "" + u.getX() + " " + u.getY();
+
+            List<Edge> adjacentU = adj.get(tmp);
+            if (adjacentU.isEmpty()) {
+                curPath.clear();
+                visited[u.index] = true;
+                continue;
+            }
 
             for (Edge e : adjacentU) {
                 Node v = e.getDest();
@@ -488,7 +654,6 @@ class WGraph {
                     } else {
                         paths.put(v.getDist(), temp);
                     }
-                    visited[v.index] = false;
                     curPath.clear();
                     curPath.add(u);
                 }
@@ -511,12 +676,21 @@ class WGraph {
                 }
 
             }
+            Node v = queue.peek();
+            for (Edge e : adjacentU) {
+                if(!e.getDest().equals(v))
+                    queue.remove(e.getDest());
+            }
           }
 
         ArrayList<Node> minPath = paths.get(minCost);
+        if (paths.isEmpty()) {
+            ArrayList<Integer> x = new ArrayList<>();
+            return x;
+        }
         if (!minPath.isEmpty()) {
             return N2INT(minPath);
         }
-        return null;
+        return null;*/
     }
 }

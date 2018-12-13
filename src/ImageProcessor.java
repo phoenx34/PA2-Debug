@@ -1,3 +1,5 @@
+import javax.xml.soap.Node;
+import java.awt.image.PixelGrabber;
 import java.io.*;
 import java.util.*;
 
@@ -116,7 +118,7 @@ class ImageProcessor {
     // This is the 2D array we will store all the pixels in.
     private ArrayList<ArrayList<Pixel>> m;
     // This contains a list of each pixel in m and their respective adjacent edges.
-    private HashMap<Pixel, Set<Edge>> adj = new HashMap<>();
+    private HashMap<String, Set<Edge>> adj = new HashMap<>();
     // Height and Width values
     private static int H, W;
     // This is a 2D array of integer values representing the pixel's importance at
@@ -229,7 +231,8 @@ class ImageProcessor {
                     adjacent = new HashSet<>();
                     adjacent.add(e1);
                     adjacent.add(e2);
-                    adj.put(m.get(i).get(j), adjacent);
+                    String q = "" + m.get(i).get(j).getX() + " " + m.get(i).get(j).getY();
+                    adj.put(q, adjacent);
                 } else if (j == W - 1) {
                     e1 = new Edge(m.get(i).get(j), m.get(i + 1).get(j), I.get(i).get(j) + I.get(i + 1).get(j));
                     e2 = new Edge(m.get(i).get(j), m.get(i + 1).get(j - 1), I.get(i).get(j) + I.get(i + 1).get(j - 1));
@@ -238,7 +241,8 @@ class ImageProcessor {
                     adjacent = new HashSet<>();
                     adjacent.add(e1);
                     adjacent.add(e2);
-                    adj.put(m.get(i).get(j), adjacent);
+                    String q = "" + m.get(i).get(j).getX() + " " + m.get(i).get(j).getY();
+                    adj.put(q, adjacent);
                 } else {
                     e1 = new Edge(m.get(i).get(j), m.get(i+1).get(j), I.get(i).get(j) + I.get(i+1).get(j));
                     e2 = new Edge(m.get(i).get(j), m.get(i+1).get(j+1), I.get(i).get(j) + I.get(i+1).get(j+1));
@@ -250,7 +254,8 @@ class ImageProcessor {
                     adjacent.add(e1);
                     adjacent.add(e2);
                     adjacent.add(e3);
-                    adj.put(m.get(i).get(j), adjacent);
+                    String q = "" + m.get(i).get(j).getX() + " " + m.get(i).get(j).getY();
+                    adj.put(q, adjacent);
                 }
 
 
@@ -366,10 +371,58 @@ class ImageProcessor {
     private ArrayList<Pixel> MinVC() {
         I.clear();
         I = getImportance();
-        Set<Pixel> S1 = new HashSet<>();
-        Set<Pixel> S2 = new HashSet<>();
+        Set<Pixel> S1 = new HashSet<Pixel>() {
+            @Override
+            public boolean contains(Object o) {
+                if (!this.isEmpty()) {
+                    for (Pixel v : this) {
+                        if (v.equals(o)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+        };
+        Set<Pixel> S2 = new HashSet<Pixel>() {
+            @Override
+            public boolean contains(Object o) {
+                if (!this.isEmpty()) {
+                    for (Pixel v : this) {
+                        if (v.equals(o)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+        };
 
-        Pixel src = new Pixel(0,0,0,0,0);
+
+
+//        int[][] MC = new int[H][W];
+//        for (int i = 0; i < H; i++) {
+//            for (int j = 0; j < W; j++) {
+//                MC[i][j] = Integer.MAX_VALUE;
+//            }
+//        }
+//        for (int j = 0; j < W; j++) {
+//            MC[0][j] = I.get(0).get(j);
+//        }
+//
+//        for (int i = 1; i < H; i++) {
+//            for (int j = 0; j < W; j++) {
+//                MC[i][j] = Math.min(MC[i][j], MC[i-1][j] + I.get(i).get(j));
+//                if (j - 1 >= 0) {
+//                    MC[i][j] = Math.min(MC[i][j-1], MC[i-1][j] + I.get(i).get(j-1));
+//                }
+//                if (j + 1 < W) {
+//                    MC[i][j] = Math.min(MC[i][j+1], MC[i-1][j] + I.get(i).get(j+1));
+//                }
+//            }
+//        }
+
+
 
         for (int i = 0; i < W; i++) {
             m.get(0).get(i).setDist(I.get(0).get(i));
@@ -377,12 +430,92 @@ class ImageProcessor {
             S2.add(m.get(H - 1).get(i));
         }
 
-        for (Pixel p : S1) {
-            Edge root = new Edge(src, p, 0);
-            e.add(root);
-        }
+
 
         int minCost = Integer.MAX_VALUE;
+        Hashtable<Integer, ArrayList<Pixel>> paths = new Hashtable<>();
+
+        for (Pixel src : S1) {
+            ArrayList<Pixel> curPath = new ArrayList<>();
+
+            if (S2.contains(src)) {
+                curPath.add(src);
+                return curPath;
+            }
+
+            PriorityQueue<Pixel> queue = new PriorityQueue<>();
+//
+//            src.setDist(0);
+//            m.remove(src);
+//            m.add(src);
+
+            queue.add(src);
+
+            curPath.add(src);
+
+            while (!queue.isEmpty()) {
+                Pixel u = queue.poll();
+                String utmp = "" + u.getX() + " " + u.getY();
+                Set<Edge> adjacentU = adj.get(utmp);
+                queue.clear();
+
+                if (!curPath.contains(u)) {
+                    curPath.add(u);
+                }
+
+                if (adjacentU == null) {
+                    break;
+                }
+
+                int minTemp = Integer.MAX_VALUE;
+
+                for (Edge e : adjacentU) {
+                    Pixel v = e.getDest();
+
+                    if (!v.getVisited()) {
+                        if ((u.getDist() + e.getWeight()) < v.getDist()) {
+                            v.setDist(u.getDist() + e.getWeight());
+                            v.setVisited(true);
+                            queue.add(v);
+                        }
+                    }
+                    if (S2.contains(v)) {
+                        curPath.add(v);
+                        Object o = curPath.clone();
+                        ArrayList<Pixel> temp = (ArrayList<Pixel>) curPath.clone();
+                        if (v.getDist() < minCost) {
+                            minCost = v.getDist();
+                            paths.put(minCost, temp);
+                        } else {
+                            paths.put(v.getDist(), temp);
+                        }
+                        curPath.clear();
+                        queue.clear();
+                    }
+                }
+                src.setVisited(true);
+//                Pixel v = queue.peek();
+//                for (Edge e : adjacentU) {
+//                    if (!e.getDest().equals(v))
+//                        queue.remove(e.getDest());
+//                }
+
+            }
+
+        }
+        ArrayList<Pixel> minPath = paths.get(minCost);
+
+        if (paths.isEmpty()) {
+            ArrayList<Pixel> x = new ArrayList<>();
+            return x;
+        }
+
+        if (!minPath.isEmpty() && minPath.size() == H ) {
+            return minPath;
+        }
+        return null;
+
+        /*int minCost = Integer.MAX_VALUE;
         ArrayList<Pixel> curPath = new ArrayList<>();
         Hashtable<Integer, ArrayList<Pixel>> paths = new Hashtable<>();
         src.setDist(0);
@@ -465,8 +598,7 @@ class ImageProcessor {
             }
         }
 
-        return paths.get(minCost);
-
+        return paths.get(minCost);*/
     }
 
     /**
